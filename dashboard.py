@@ -69,6 +69,40 @@ price_bands = pd.cut(view["price"], bins=10, duplicates="drop").astype(str)
 distribution = price_bands.value_counts(sort=False).rename_axis("Price range").reset_index(name="Variants")
 st.bar_chart(distribution, x="Price range", y="Variants")
 
+st.subheader("Category signals")
+category_view = view.copy()
+category_view["product_type"] = category_view["product_type"].replace("", "Uncategorised").fillna("Uncategorised")
+category_view["discounted"] = category_view["discount_pct"] > 0
+category_view["out_of_stock"] = category_view["available"] == 0
+category_summary = category_view.groupby("product_type", as_index=False).agg(
+    variants=("variant_id", "size"),
+    median_price=("price", "median"),
+    discounted_share=("discounted", "mean"),
+    out_of_stock_share=("out_of_stock", "mean"),
+).sort_values("variants", ascending=False)
+st.dataframe(category_summary, width="stretch", hide_index=True)
+
+st.subheader("Variant price history")
+variant_options = view[["product_id", "variant_id", "title", "variant_title"]].drop_duplicates().reset_index(drop=True)
+selected_variant = st.selectbox(
+    "Product variant",
+    range(len(variant_options)),
+    format_func=lambda index: (
+        f"{variant_options.iloc[index]['title']} — "
+        f"{variant_options.iloc[index]['variant_title']} "
+        f"(ID {variant_options.iloc[index]['variant_id']})"
+    ),
+)
+chosen = variant_options.iloc[selected_variant]
+with closing(get_connection()) as conn:
+    history = pd.read_sql_query("""
+        SELECT id, price, snapshot_at FROM price_snapshots
+        WHERE store = ? AND product_id = ? AND variant_id = ?
+        ORDER BY id
+    """, conn, params=(selected, int(chosen["product_id"]), int(chosen["variant_id"])))
+history["snapshot_at"] = pd.to_datetime(history["snapshot_at"])
+st.line_chart(history.set_index("snapshot_at")["price"])
+
 st.subheader("Current product and promotion view")
 st.dataframe(view[["title", "vendor", "product_type", "variant_title", "price",
                    "compare_at_price", "discount_pct", "available", "snapshot_at"]],

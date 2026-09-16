@@ -9,7 +9,7 @@ This project uses storefronts' public `/products.json` endpoint. Availability an
 - Collects public product and variant data with retries for transient errors, page de-duplication, and a configurable page limit.
 - Stores current product metadata and historical variant prices in SQLite. Existing databases are migrated automatically: duplicate product rows are consolidated while price history remains.
 - Flags price changes above a configurable threshold and records new products, discounted variants, out-of-stock variants, and run status.
-- Shows per-store product, price, discount and availability views in a Streamlit dashboard; optionally sends Telegram messages.
+- Shows per-store prices, discount and availability, category signals, and variant price history in a Streamlit dashboard; optionally sends Telegram messages.
 - Runs automated unit tests on every push and pull request.
 
 ## Setup
