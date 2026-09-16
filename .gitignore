@@ -1,5 +1,9 @@
 data/*.db
+data/*.db-*
 __pycache__/
 *.py[cod]
+.venv/
+.env
 .DS_Store
 .ipynb_checkpoints/
+__pycache__/

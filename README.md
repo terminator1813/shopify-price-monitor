@@ -1,64 +1,72 @@
-# Shopify Competitor Price Monitor
+# Shopify Competitive Intelligence Monitor
 
-> Portfolio version: Telegram credentials are intentionally blank and local database files are excluded from version control.
+Track price, discount, availability and newly observed products across selected Shopify storefronts. Each run records its completeness (`success`, `partial`, or `failed`) so missing data is not mistaken for a quiet market.
 
-Automated price monitoring for Shopify-based e-commerce competitors. Fetches product data via Shopify's `/products.json` API, tracks price changes over time, and sends real-time alerts through Telegram.
+This project uses storefronts' public `/products.json` endpoint. Availability and access rules vary by store, so the monitor handles blocked and incomplete responses explicitly. It does not use the authenticated Shopify Admin API.
 
-## Why Shopify Stores?
+## What it does
 
-Shopify stores expose a public `/products.json` endpoint — no scraping, no HTML parsing, no anti-bot measures. This makes them ideal for competitive price intelligence in cross-border e-commerce.
+- Collects public product and variant data with retries for transient errors, page de-duplication, and a configurable page limit.
+- Stores current product metadata and historical variant prices in SQLite. Existing databases are migrated automatically: duplicate product rows are consolidated while price history remains.
+- Flags price changes above a configurable threshold and records new products, discounted variants, out-of-stock variants, and run status.
+- Shows per-store product, price, discount and availability views in a Streamlit dashboard; optionally sends Telegram messages.
+- Runs automated unit tests on every push and pull request.
 
-## Features
+## Setup
 
-- **API-based data collection**: Fetch product catalog from any Shopify store via `/products.json`
-- **Price change detection**: Compare current prices against historical snapshots
-- **Telegram alerts**: Real-time notifications when prices drop or increase beyond a threshold
-- **Multi-store support**: Monitor multiple competitors simultaneously
-- **Persistent storage**: SQLite database for price history and change tracking
-- **Configurable thresholds**: Set minimum price change percentage for alerts
-
-## Tech Stack
-
-- **Python 3** (requests, pandas, sqlite3)
-- **Shopify `/products.json` API** (public, no auth required)
-- **Telegram Bot API** for notifications
-- **SQLite** for local data persistence
-
-## Project Structure
-
-```
-shopify-price-monitor/
-├── README.md
-├── config.py              # Store URLs, thresholds, Telegram config
-├── monitor.py             # Main monitoring script
-├── database.py            # SQLite data layer
-├── telegram_bot.py        # Telegram notification helper
-├── requirements.txt
-└── data/
-    └── .gitkeep
-```
-
-## Quick Start
+Python 3.10 or newer is recommended.
 
 ```bash
-pip install -r requirements.txt
-# Edit config.py with your store URLs and Telegram bot token
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 python monitor.py
+python monitor.py --stats
+python monitor.py --changes
+streamlit run dashboard.py
 ```
 
-## How It Works
+Edit `STORES` in `config.py` to select storefronts. Set `currency` only after checking which market the endpoint serves. Raw prices from different currencies must not be compared directly.
 
-1. Fetches products from configured Shopify stores via `GET /products.json`
-2. Compares current prices against the last snapshot in SQLite
-3. If any price change exceeds the threshold, sends a Telegram alert
-4. Stores the new snapshot for future comparisons
+Optional environment variables:
 
-## Use Cases
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `PRICE_CHANGE_THRESHOLD` | Alert threshold in percent | `5.0` |
+| `PRODUCTS_PER_PAGE` | Products per request, max 250 | `250` |
+| `MAX_PAGES` | Maximum pages per store | `2` |
+| `SHOPIFY_DB_PATH` | SQLite file location | `data/prices.db` |
+| `TELEGRAM_BOT_TOKEN` | Optional bot credential | unset |
+| `TELEGRAM_CHAT_ID` | Optional recipient | unset |
 
-- **Cross-border e-commerce**: Monitor competitor pricing for fashion/accessories
-- **Dynamic pricing research**: Track pricing strategies over time
-- **Market intelligence**: Identify sales, promotions, and new product launches
+For Telegram, set both values in your shell or a private environment manager; do not commit credentials. If unset, the monitor still collects data. The database, environment files and caches are excluded from Git.
 
-## Course Project
+## Data and interpretation
 
-Built as part of cross-border e-commerce research, Monash University BA+FinTech (2026)
+Prices are variant prices in the storefront's active market; the dashboard shows the store's configured currency or marks it unverified. Discount depth is `(compare_at_price - price) / compare_at_price`, only when a positive reference price exceeds the current price. "New product" means newly observed by this monitor, not necessarily newly launched by the retailer. A full final page at `MAX_PAGES` is marked `partial` because more catalogue pages might exist. A failed request is recorded separately from an empty catalogue.
+
+The project does not claim to cover every product on a store or infer inventory quantity. `available=false` is used only as an out-of-stock indicator. Pricing and product comparisons should be made within compatible stores, currencies and product categories.
+
+## Tests
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+The tests cover first scans, threshold changes, atomic rollback on malformed data, incomplete pagination, invalid JSON, discount calculations and migration of legacy duplicate rows.
+
+## Repository map
+
+| File | Role |
+| --- | --- |
+| `monitor.py` | Collection, validation and command line interface |
+| `database.py` | SQLite schema, migration and queries |
+| `analytics.py` | Commerce metric definitions |
+| `telegram_bot.py` | Optional notification delivery |
+| `dashboard.py` | Streamlit data view |
+| `tests/` | Unit tests |
+| `shopify_price_monitor.ipynb` | Earlier exploratory notebook; the Python modules are the maintained implementation |
+
+## Current scope
+
+One monitoring run is started manually with `python monitor.py`. A scheduled GitHub Actions job would lose its SQLite history between runs unless a durable database is provided, so this repository schedules tests only. A local task scheduler or an external database can be added for continuous collection.

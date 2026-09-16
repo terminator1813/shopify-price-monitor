@@ -1,25 +1,18 @@
-# Shopify stores to monitor
-# Each entry: (name, base_url)
+"""Configuration for the public storefront monitor."""
+
+import os
+
+
+# Currency is intentionally unset until the requested storefront market is verified.
 STORES = [
-    ("ColourPop", "https://colourpop.com"),
-    ("Allbirds", "https://www.allbirds.com"),
-    ("Matt & Nat", "https://mattandnat.com"),
+    {"name": "ColourPop", "url": "https://colourpop.com", "currency": None},
+    {"name": "Allbirds", "url": "https://www.allbirds.com", "currency": None},
+    {"name": "Matt & Nat", "url": "https://mattandnat.com", "currency": None},
 ]
 
-# Price change threshold (percentage) to trigger alert
-# e.g., 5.0 means alert when price changes by 5% or more
-PRICE_CHANGE_THRESHOLD = 5.0
-
-# Telegram bot configuration
-# Set these to enable Telegram notifications
-TELEGRAM_BOT_TOKEN = ""  # Get from @BotFather
-TELEGRAM_CHAT_ID = ""    # Your chat ID (use @userinfobot to find)
-
-# Database path
-DB_PATH = "data/prices.db"
-
-# How many products to fetch per store per request (Shopify default max: 250)
-PRODUCTS_PER_PAGE = 250
-
-# Max pages to fetch per store (to avoid excessive requests)
-MAX_PAGES = 2
+PRICE_CHANGE_THRESHOLD = float(os.getenv("PRICE_CHANGE_THRESHOLD", "5.0"))
+DB_PATH = os.getenv("SHOPIFY_DB_PATH", "data/prices.db")
+PRODUCTS_PER_PAGE = int(os.getenv("PRODUCTS_PER_PAGE", "250"))
+MAX_PAGES = int(os.getenv("MAX_PAGES", "2"))
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")

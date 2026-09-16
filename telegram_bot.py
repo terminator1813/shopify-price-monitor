@@ -1,69 +1,37 @@
-"""
-Telegram notification helper for price change alerts.
-"""
+"""Optional Telegram delivery. Credentials are read from environment variables."""
 
 import requests
+
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 
-def send_alert(product_title, variant_title, old_price, new_price, change_pct, direction, store):
-    """Send a price change alert via Telegram."""
+def _send(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print(f"  [Telegram not configured] {direction}: {product_title} ({variant_title}) "
-              f"${old_price:.2f} → ${new_price:.2f} ({change_pct:+.1f}%)")
         return False
-
-    emoji = "📉" if direction == "decrease" else "📈"
-    variant_info = f" ({variant_title})" if variant_title and variant_title != "Default Title" else ""
-
-    message = (
-        f"{emoji} **Price {direction}**\n\n"
-        f"**Store:** {store}\n"
-        f"**Product:** {product_title}{variant_info}\n"
-        f"**Old price:** ${old_price:.2f}\n"
-        f"**New price:** ${new_price:.2f}\n"
-        f"**Change:** {change_pct:+.1f}%"
-    )
-
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown",
-    }
-
     try:
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            print(f"  [Telegram] Alert sent: {product_title}")
-            return True
-        else:
-            print(f"  [Telegram] Failed ({response.status_code}): {response.text[:100]}")
-            return False
-    except Exception as e:
-        print(f"  [Telegram] Error: {e}")
+        response = requests.post(
+            url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message}, timeout=10,
+        )
+        response.raise_for_status()
+        return True
+    except requests.RequestException as exc:
+        # Avoid printing the request URL because it contains the bot token.
+        print(f"Telegram delivery failed: {type(exc).__name__}")
         return False
+
+
+def send_alert(product_title, variant_title, old_price, new_price, change_pct,
+               direction, store, currency="currency unverified"):
+    message = (
+        f"Price {direction}: {store} — {product_title} ({variant_title})\n"
+        f"{old_price:.2f} → {new_price:.2f} {currency} ({change_pct:+.1f}%)"
+    )
+    return _send(message)
 
 
 def send_summary(changes_count, stores_checked):
-    """Send a summary after monitoring run."""
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-
-    message = (
-        f"📊 **Monitor Run Complete**\n\n"
-        f"Stores checked: {stores_checked}\n"
-        f"Price changes detected: {changes_count}"
+    return _send(
+        f"Monitor run complete: {stores_checked} stores checked, "
+        f"{changes_count} price changes detected."
     )
-
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown",
-    }
-
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception:
-        pass
